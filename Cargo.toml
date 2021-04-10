@@ -1,0 +1,11 @@
+[package]
+name = "vba_interpreter"
+version = "0.1.0"
+edition = "2018"
+exclude = ["/build.rs","/grammars","/templates"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+antlr-rust = "=0.2"
+  
