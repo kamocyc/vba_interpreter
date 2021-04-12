@@ -224,6 +224,23 @@ impl<'i> vbaVisitor<'i> for Visitor {
     self.stack_of_stack.last_mut().unwrap().push(ASTNode::Statement(Statement::Assign(id1, e1)));
   }
   
+  fn visit_Statement_Call(&mut self, ctx: &Statement_CallContext<'i>) {
+    self.stack_of_stack.push(Vec::new());
+    self.visit_children(ctx);
+    let mut stack = self.stack_of_stack.pop().unwrap();
+    
+    let e2 = extract!(stack, ASTNode::Arguments);
+    let e1 = extract!(stack, ASTNode::Chain);
+    
+    let e =
+    match e1 {
+        Chain::App(App {id, arguments: _}) => Chain::App(App {id, arguments: e2}),
+        Chain::Method(chain, App {id, arguments: _}) => Chain::Method(chain, App {id, arguments: e2})
+      };
+    
+    self.stack_of_stack.last_mut().unwrap().push(ASTNode::Statement(Statement::Expr(Expr::Var(e))));
+  }
+  
   fn visit_Statement_If(&mut self, ctx: &Statement_IfContext<'i>) {
     self.stack_of_stack.push(Vec::new());
     self.visit_children(ctx);

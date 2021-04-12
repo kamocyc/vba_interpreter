@@ -32,30 +32,18 @@ mod runtime {
     Object(Object),
   }
   
+  #[derive(Debug, Clone)]
   pub struct Env {
     global: HashMap<Id, Value>,
     stack: Vec<HashMap<Id, Value>>
   }
   
-  fn get_buildin(func_name: &String)-> Option<Value> {
-    match func_name.as_str() {
-      "Debug" => Some (Value::Object(Object {
-        fields: HashMap::new(),
-        methods: [
-          ("Print".to_owned(), Function{
-            id: "Print".to_owned(),
-            parameters: vec!["message".to_owned()],
-            body: FunctionBody::Native(crate::native::debug::print)
-          })
-        ].iter().cloned().collect::<HashMap<Id, Function>>()
-      })),
-      _ => None
-      
-    }
-  }
-  
-  fn invoke_buildin_function(func_name: &String, arguments: Vec<Expr>)-> Option<Value> {
-    None
+  macro_rules! hashmap {
+    ($( $key: expr => $val: expr ),*) => {{
+      let mut map = ::std::collections::HashMap::new();
+      $( map.insert($key, $val); )*
+      map
+    }}
   }
   
   impl Env {
@@ -66,35 +54,40 @@ mod runtime {
       }
     }
     
+    fn append_global(&mut self, values: HashMap<Id, Value>) {
+      for value in values {
+        self.global.insert(value.0, value.1);
+      }
+    }
+    
     fn push_stack(&mut self) {
       self.stack.push(HashMap::new());
     }
     
     fn assign_local_var(&mut self, id: &String, value: Value) {
-      self.stack.last_mut().unwrap().insert(Clone::clone(id), value);
+      self.stack.last_mut().unwrap().insert(id.clone(), value);
       println!("assigned: {:?}", self.stack);
     }
     
-    fn get_var_opt(&mut self, id: &String)-> Option<Value> {
-      println!("get_var: {:?}", self.stack);
-      match self.stack.last().unwrap().get(id) {
-        Some(v) => Some(v.clone()),
-        None => {
-          match self.global.get(id) {
-            Some(v) => Some(v.clone()),
-            None => {
-              match get_buildin(id) {
-                Some(v) => Some(v.clone()),
-                None => None
-              }
-            }
+    fn get_opt(&self, id: &String)-> Option<&Value> {
+      println!("get: {:?}", self.stack);
+      match self.stack.last() {
+        Some(v) => match v.get(id) {
+          Some(v) => Some(v),
+          None => match self.global.get(id) {
+            Some(v) => Some(v),
+            None => None
           }
+        },
+        None => match self.global.get(id) {
+          Some(v) => Some(v),
+          None => None
         }
       }
     }
     
-    fn get_var(&mut self, id: &String)-> Value {
-      match self.get_var_opt(id) {
+    fn get(&self, id: &String)-> &Value {
+      match self.get_opt(id) {
         Some (value) => value,
         None => panic!("name not found: {}", id)
       }
@@ -102,12 +95,11 @@ mod runtime {
   }
   
   pub struct Program {
-    module: Module
   }
   
   impl Program {
-    pub fn new(module: Module)-> Self {
-      Self {module: module}
+    pub fn new()-> Self {
+      Self {}
     }
   }
   
@@ -155,12 +147,40 @@ mod runtime {
   }
   
   impl Program {
-    pub fn evaluate_program(&self, env: &mut Env)-> Value {
-      let main_functions = self.module.functions.iter().filter(|f| f.id == "main").collect::<Vec<&Function>>();
-      if main_functions.len() == 1 {
-        self.invoke_function(env, main_functions[0], &vec![])
-      } else {
-        panic!("should have one main function");
+    pub fn evaluate_program(&self, module: Module, env: &mut Env, entry_function: &String)-> Value {
+      let mut functions = HashMap::new();
+      for function in module.functions {
+        functions.insert(function.id.clone(), Value::Function(function));
+      }
+      
+      functions.insert(
+        "Debug".to_owned(),
+        Value::Object(Object {
+          fields: HashMap::new(),
+          methods: hashmap!["Print".to_owned() => Function{
+              id: "Print".to_owned(),
+              parameters: vec!["message".to_owned()],
+              body: FunctionBody::Native(crate::native::debug::print)
+            }]
+        }),
+      );
+      
+      env.append_global(functions);
+      
+      println!("{:?}", env);
+      
+      match env.get_opt(entry_function) {
+        Some(value) => {
+          match value {
+            Value::Function(function) => {
+              // TODO: do not clone
+              let function = &function.clone();
+              self.invoke_function(env, function, &vec![])
+            },
+            _ => value.clone()
+          }
+        },
+        None => panic!("entry_funciton {:?} not found", entry_function)
       }
     }
     
@@ -182,7 +202,7 @@ mod runtime {
           
           self.evaluate_block(env, &(body));
           
-          env.get_var(&function.id)
+          env.get(&function.id).clone()
         }
       }
       
@@ -213,13 +233,13 @@ mod runtime {
             env.assign_local_var(id, val);
             loop {
               let val = self.evaluate_expr(env, end_expr);
-              if assert_type!(env.get_var(id), Value::Int) > cast_to_int(val) {
+              if *assert_type!(env.get(id), Value::Int) > cast_to_int(val) {
                 break;
               }
               
               self.evaluate_block(env, block);
               
-              let t = assert_type!(env.get_var(id), Value::Int) + 1;
+              let t = assert_type!(env.get(id), Value::Int) + 1;
               env.assign_local_var(id, Value::Int(t));
             }
           },
@@ -243,23 +263,26 @@ mod runtime {
     fn evaluate_app(&self, env: &mut Env, app: &App)-> Value {
       let App {id, arguments} = app;
       
-      match env.get_var_opt(id) {
+      match env.get_opt(id) {
         Some(value) => {
-          assert!(arguments.len() == 0);
-          value
-        },
-        None => {
-          let functions = self.module.functions.iter().filter(|f| f.id == *id).collect::<Vec<&Function>>();
-          if functions.len() == 1 {
-            let args: Vec<Value> = arguments.iter().map(|arg| self.evaluate_expr(env, arg)).collect();
-            self.invoke_function(env, functions[0], &args)
-          } else {
-            match invoke_buildin_function(id, arguments.to_vec()) {
-              Some(r) => r,
-              None => panic!("function not found: {:?}", id)
+          match value {
+            Value::Function(function) => {
+              // TODO: do not clone
+              let function = &function.clone();
+              let mut args = vec![];
+              for arg in arguments {
+                args.push(self.evaluate_expr(env, arg));
+              }
+              
+              self.invoke_function(env, function, &args)
+            },
+            _ => {
+              assert!(arguments.len() == 0);
+              value.clone()
             }
           }
-        }
+        },
+        None => panic!("not found: {:?}", id)
       }
     }
     
@@ -281,8 +304,8 @@ mod runtime {
           }
         }
       }
-      
     }
+    
     fn evaluate_chain(&self, env: &mut Env, chain: &Chain)-> Value {
       match chain {
         Chain::App(app) => {
@@ -369,8 +392,8 @@ fn main() {
   let module = crate::gen::parse(filename);
   
   let mut global_env = crate::runtime::Env::new();
-  let prog = crate::runtime::Program::new(module);
-  let result = prog.evaluate_program(&mut global_env);
+  let prog = crate::runtime::Program::new();
+  let result = prog.evaluate_program(module, &mut global_env, &"main".to_owned());
   
   println!("result: {:?}", result);
 }

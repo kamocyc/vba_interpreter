@@ -16,7 +16,7 @@ Function main()
     sum = sum + i
   Next
   
-  Debug.Print("a")
+  Debug.Print "a"
   ' main = a + add(5 * 3, b)
   main = "あいうえお" & "かきく: " & sum
 End Function

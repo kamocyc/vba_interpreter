@@ -12,6 +12,7 @@ statement
   | IF expr THEN line_end* block line_end* (ELSE line_end* block line_end*)? END_IF # Statement_If
   | FOR ID EQUAL expr TO expr line_end+ block line_end+ NEXT # Statement_For
   | expr           # Statement_Expr
+  | chain_expr arguments   # Statement_Call
   ;
   
 line_end :
