@@ -9,7 +9,19 @@ pub struct Module {
 pub struct Function {
   pub id: Id,
   pub parameters: Vec<Id>,
-  pub body: Block,
+  pub body: FunctionBody,
+}
+
+#[derive(Clone)]
+pub enum FunctionBody {
+  Native(fn(&Vec<crate::runtime::Value>) -> crate::runtime::Value),
+  VBA(Block)
+}
+
+impl std::fmt::Debug for FunctionBody {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_tuple("").finish()
+  }
 }
 
 #[derive(Debug, Clone)]
@@ -19,7 +31,9 @@ pub struct Block {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-  Assign(Id, Expr),
+  Assign(Chain, Expr),
+  If(Expr, Block, Option<Block>),
+  For(Id, Expr, Expr, Block),
   Expr(Expr),
 }
 
@@ -28,8 +42,36 @@ pub type Id = String;
 #[derive(Debug, Clone)]
 pub enum Expr {
   Int(i32),
-  Add(Rc<Expr>, Rc<Expr>),
-  Sub(Rc<Expr>, Rc<Expr>),
-  Mul(Rc<Expr>, Rc<Expr>),
-  Div(Rc<Expr>, Rc<Expr>),
+  String(String),
+  Var(Chain),
+  BinOp(Op, Rc<Expr>, Rc<Expr>)
+}
+
+#[derive(Debug, Clone)]
+pub enum Op {
+  Add,
+  Sub,
+  Mul,
+  Div,
+  Geq,
+  Gt,
+  Leq,
+  Lt,
+  Equal,
+  Neq,
+  And,
+  Or,
+  Concat,
+}
+
+#[derive(Debug, Clone)]
+pub enum Chain {
+  App(App),
+  Method(Rc<Chain>, App)
+}
+
+#[derive(Debug, Clone)]
+pub struct App {
+  pub id: Id,
+  pub arguments: Vec<Expr>
 }
