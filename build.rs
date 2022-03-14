@@ -6,7 +6,7 @@ fn main() {
   let grammars = vec!["vba"];
   let additional_args = vec![Some("-visitor"), None, None, None, None];
   // This should be set by some config file
-  let antlr_path = "/usr/local/lib/antlr4.jar";
+  let antlr_path = "/opt/home2/git/vba_interpreter/antlr4-4.8-2-SNAPSHOT-complete.jar ";
 
   for (grammar, arg) in grammars.into_iter().zip(additional_args) {
     //ignoring error because we do not need to run anything when deploying to crates.io

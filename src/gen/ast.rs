@@ -1,5 +1,7 @@
 use std::rc::Rc;
 
+pub type Id = String;
+
 #[derive(Debug, Clone)]
 pub struct Module {
   pub functions: Vec<Function>
@@ -36,8 +38,6 @@ pub enum Statement {
   For(Id, Expr, Expr, Block),
   Expr(Expr),
 }
-
-pub type Id = String;
 
 #[derive(Debug, Clone)]
 pub enum Expr {

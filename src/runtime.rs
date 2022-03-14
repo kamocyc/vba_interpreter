@@ -1,22 +1,23 @@
+use std::rc::Rc;
 use crate::gen::ast::*;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Object {
   pub fields: HashMap<Id, Value>,
   pub methods: HashMap<Id, Function>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Value {
   Int(i32),
   Bool(bool),
   String(String),
-  Function(Function),
-  Object(Object),
+  Function(Rc<Function>),
+  Object(Rc<Object>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Env {
   global: HashMap<Id, Value>,
   stack: Vec<HashMap<Id, Value>>
@@ -132,7 +133,7 @@ impl Program {
   pub fn evaluate_program(&self, module: Module, env: &mut Env, entry_function: &String)-> Value {
     let mut functions = HashMap::new();
     for function in module.functions {
-      functions.insert(function.id.clone(), Value::Function(function));
+      functions.insert(function.id.clone(), &Value::Function(function));
     }
     
     env.append_global(functions);
@@ -144,7 +145,7 @@ impl Program {
         match value {
           Value::Function(function) => {
             // TODO: do not clone
-            let function = &function.clone();
+            // let function = &function.clone();
             self.invoke_function(env, function, &vec![])
           },
           _ => value.clone()
@@ -238,7 +239,7 @@ impl Program {
         match value {
           Value::Function(function) => {
             // TODO: do not clone
-            let function = &function.clone();
+            // let function = &function.clone();
             let mut args = vec![];
             for arg in arguments {
               args.push(self.evaluate_expr(env, arg));
