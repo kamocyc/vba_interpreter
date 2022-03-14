@@ -8,7 +8,7 @@ pub struct Object {
   pub methods: HashMap<Id, Function>,
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum Value {
   Int(i32),
   Bool(bool),
@@ -51,24 +51,24 @@ impl Env {
     println!("assigned: {:?}", self.stack);
   }
   
-  fn get_opt(&self, id: &String)-> Option<&Value> {
+  fn get_opt(&self, id: &String)-> Option<Value> {
     println!("get: {:?}", self.stack);
     match self.stack.last() {
       Some(v) => match v.get(id) {
-        Some(v) => Some(v),
+        Some(v) => Some(v.clone()),
         None => match self.global.get(id) {
-          Some(v) => Some(v),
+          Some(v) => Some(v.clone()),
           None => None
         }
       },
       None => match self.global.get(id) {
-        Some(v) => Some(v),
+        Some(v) => Some(v.clone()),
         None => None
       }
     }
   }
   
-  fn get(&self, id: &String)-> &Value {
+  fn get(&self, id: &String)-> Value {
     match self.get_opt(id) {
       Some (value) => value,
       None => panic!("name not found: {}", id)
@@ -133,7 +133,7 @@ impl Program {
   pub fn evaluate_program(&self, module: Module, env: &mut Env, entry_function: &String)-> Value {
     let mut functions = HashMap::new();
     for function in module.functions {
-      functions.insert(function.id.clone(), &Value::Function(function));
+      functions.insert(function.id.clone(), Value::Function(Rc::new(function)));
     }
     
     env.append_global(functions);
@@ -146,7 +146,7 @@ impl Program {
           Value::Function(function) => {
             // TODO: do not clone
             // let function = &function.clone();
-            self.invoke_function(env, function, &vec![])
+            self.invoke_function(env, &function, &vec![])
           },
           _ => value.clone()
         }
@@ -204,7 +204,7 @@ impl Program {
           env.assign_local_var(id, val);
           loop {
             let val = self.evaluate_expr(env, end_expr);
-            if *assert_type!(env.get(id), Value::Int) > cast_to_int(val) {
+            if assert_type!(env.get(id), Value::Int) > cast_to_int(val) {
               break;
             }
             
@@ -245,7 +245,7 @@ impl Program {
               args.push(self.evaluate_expr(env, arg));
             }
             
-            self.invoke_function(env, function, &args)
+            self.invoke_function(env, &function, &args)
           },
           _ => {
             assert!(arguments.len() == 0);

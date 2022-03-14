@@ -16,6 +16,7 @@ mod native {
 mod runtime;
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
 macro_rules! hashmap {
   ($( $key: expr => $val: expr ),*) => {{
@@ -33,14 +34,14 @@ fn main() {
     crate::runtime::Env::new(
       vec![
         ("Debug".to_owned(),
-        crate::runtime::Value::Object(crate::runtime::Object {
+        crate::runtime::Value::Object(Rc::new(crate::runtime::Object {
           fields: HashMap::new(),
           methods: hashmap!["Print".to_owned() => crate::gen::ast::Function{
               id: "Print".to_owned(),
               parameters: vec!["message".to_owned()],
               body: crate::gen::ast::FunctionBody::Native(crate::native::debug::print)
             }]
-        })),
+        }))),
       ]
     );
     
