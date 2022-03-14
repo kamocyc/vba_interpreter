@@ -1,4 +1,4 @@
-use std::rc::Rc;
+// use std::rc::Rc;
 
 pub type Id = String;
 
@@ -11,19 +11,7 @@ pub struct Module {
 pub struct Function {
   pub id: Id,
   pub parameters: Vec<Id>,
-  pub body: FunctionBody,
-}
-
-#[derive(Clone)]
-pub enum FunctionBody {
-  Native(fn(&Vec<crate::runtime::Value>) -> crate::runtime::Value),
-  VBA(Block)
-}
-
-impl std::fmt::Debug for FunctionBody {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_tuple("").finish()
-  }
+  pub body: Block,
 }
 
 #[derive(Debug, Clone)]
@@ -44,7 +32,7 @@ pub enum Expr {
   Int(i32),
   String(String),
   Var(Chain),
-  BinOp(Op, Rc<Expr>, Rc<Expr>)
+  BinOp(Op, Box<Expr>, Box<Expr>)
 }
 
 #[derive(Debug, Clone)]
@@ -67,7 +55,7 @@ pub enum Op {
 #[derive(Debug, Clone)]
 pub enum Chain {
   App(App),
-  Method(Rc<Chain>, App)
+  Method(Box<Chain>, App)
 }
 
 #[derive(Debug, Clone)]

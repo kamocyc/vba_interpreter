@@ -36,10 +36,10 @@ fn main() {
         ("Debug".to_owned(),
         crate::runtime::Value::Object(Rc::new(crate::runtime::Object {
           fields: HashMap::new(),
-          methods: hashmap!["Print".to_owned() => crate::gen::ast::Function{
+          methods: hashmap!["Print".to_owned() => crate::runtime::Function{
               id: "Print".to_owned(),
               parameters: vec!["message".to_owned()],
-              body: crate::gen::ast::FunctionBody::Native(crate::native::debug::print)
+              body: crate::runtime::FunctionBody::Native(crate::native::debug::print)
             }]
         }))),
       ]

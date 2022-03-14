@@ -8,6 +8,33 @@ pub struct Object {
   pub methods: HashMap<Id, Function>,
 }
 
+#[derive(Debug)]
+pub struct Function {
+  pub id: Id,
+  pub parameters: Vec<Id>,
+  pub body: FunctionBody,
+}
+
+impl Function {
+  pub fn new(ast_function: crate::gen::ast::Function)-> Self {
+    Self {
+      id: ast_function.id,
+      parameters: ast_function.parameters,
+      body: FunctionBody::VBA(ast_function.body)
+    }
+  }
+}
+
+pub enum FunctionBody {
+  Native(fn(&Vec<crate::runtime::Value>) -> crate::runtime::Value),
+  VBA(Block)
+}
+impl std::fmt::Debug for FunctionBody {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_tuple("").finish()
+  }
+}
+
 #[derive(Debug,Clone)]
 pub enum Value {
   Int(i32),
@@ -77,13 +104,6 @@ impl Env {
 }
 
 pub struct Program {
-  functions: Vec<Function>
-}
-
-impl Program {
-  pub fn new()-> Self {
-    Self { functions: vec![] }
-  }
 }
 
 macro_rules! assert_type {
@@ -130,10 +150,12 @@ fn cast_to_string(value: Value)-> String {
 }
 
 impl Program {
+  pub fn new()-> Self { Self {} }
+  
   pub fn evaluate_program(&self, module: Module, env: &mut Env, entry_function: &String)-> Value {
     let mut functions = HashMap::new();
     for function in module.functions {
-      functions.insert(function.id.clone(), Value::Function(Rc::new(function)));
+      functions.insert(function.id.clone(), Value::Function(Rc::new(Function::new(function))));
     }
     
     env.append_global(functions);
@@ -144,8 +166,6 @@ impl Program {
       Some(value) => {
         match value {
           Value::Function(function) => {
-            // TODO: do not clone
-            // let function = &function.clone();
             self.invoke_function(env, &function, &vec![])
           },
           _ => value.clone()
@@ -169,6 +189,7 @@ impl Program {
           env.assign_local_var(param, arg.clone());
         }
         
+        // return value of called function
         env.assign_local_var(&function.id, Value::Int(0));
         
         self.evaluate_block(env, &(body));
@@ -183,7 +204,7 @@ impl Program {
     for statement in &expr.statements {
       match statement {
         Statement::Expr(expr) => {
-          // return value is disposed
+          // return value is discarded
           self.evaluate_expr(env, &expr);
         },
         Statement::If(expr, block1, block2) => {
@@ -238,8 +259,6 @@ impl Program {
       Some(value) => {
         match value {
           Value::Function(function) => {
-            // TODO: do not clone
-            // let function = &function.clone();
             let mut args = vec![];
             for arg in arguments {
               args.push(self.evaluate_expr(env, arg));
@@ -310,12 +329,12 @@ impl Program {
           },
           Op::Geq | Op::Gt | Op::Leq | Op::Lt | Op::Equal | Op::Neq => {
             let op = match op {
-              Op::Geq => |x, y| x >= y,
-              Op::Gt  => |x, y| x >  y,
-              Op::Leq => |x, y| x <= y,
-              Op::Lt  => |x, y| x <  y,
+              Op::Geq   => |x, y| x >= y,
+              Op::Gt    => |x, y| x >  y,
+              Op::Leq   => |x, y| x <= y,
+              Op::Lt    => |x, y| x <  y,
               Op::Equal => |x, y| x == y,
-              Op::Neq => |x, y| x != y,
+              Op::Neq   => |x, y| x != y,
               _ => panic!()
             };
             

@@ -141,7 +141,7 @@ impl<'i> vbaVisitor<'i> for Visitor {
     
     let e2 = extract!(stack, ASTNode::App);
     let e1 = extract!(stack, ASTNode::Chain);
-    self.stack_of_stack.last_mut().unwrap().push(ASTNode::Chain(Chain::Method(std::rc::Rc::new(e1), e2)));
+    self.stack_of_stack.last_mut().unwrap().push(ASTNode::Chain(Chain::Method(Box::new(e1), e2)));
   }
   
   fn visit_Chain_expr_base(&mut self, ctx: &Chain_expr_baseContext<'i>) {
@@ -199,7 +199,7 @@ impl<'i> vbaVisitor<'i> for Visitor {
     let parameters = extract_opt_vec!(stack, ASTNode::Params);
     let id = extract!(stack, ASTNode::Id);
     
-    let e = Function { id, parameters, body: FunctionBody::VBA(body) };
+    let e = Function { id, parameters, body: body };
     self.stack_of_stack.last_mut().unwrap().push(ASTNode::Function(e));
   }
   
@@ -291,7 +291,7 @@ impl<'i> vbaVisitor<'i> for Visitor {
       MINUS => Op::Sub,
       _ => panic!()
     };
-    let expr = Expr::BinOp(op, std::rc::Rc::new(e1), std::rc::Rc::new(e2));
+    let expr = Expr::BinOp(op, Box::new(e1), Box::new(e2));
     self.stack_of_stack.last_mut().unwrap().push(ASTNode::Expr(expr));
   }
 
@@ -305,7 +305,7 @@ impl<'i> vbaVisitor<'i> for Visitor {
       SLASH => Op::Div,
       _ => panic!()
     };
-    let expr = Expr::BinOp(op, std::rc::Rc::new(e1), std::rc::Rc::new(e2));
+    let expr = Expr::BinOp(op, Box::new(e1), Box::new(e2));
     self.stack_of_stack.last_mut().unwrap().push(ASTNode::Expr(expr));
   }
   
@@ -323,7 +323,7 @@ impl<'i> vbaVisitor<'i> for Visitor {
       NEQ => Op::Neq,
       _ => panic!()
     };
-    let expr = Expr::BinOp(op, std::rc::Rc::new(e1), std::rc::Rc::new(e2));
+    let expr = Expr::BinOp(op, Box::new(e1), Box::new(e2));
     self.stack_of_stack.last_mut().unwrap().push(ASTNode::Expr(expr));
   }
   
@@ -337,7 +337,7 @@ impl<'i> vbaVisitor<'i> for Visitor {
       OR => Op::Or,
       _ => panic!()
     };
-    let expr = Expr::BinOp(op, std::rc::Rc::new(e1), std::rc::Rc::new(e2));
+    let expr = Expr::BinOp(op, Box::new(e1), Box::new(e2));
     self.stack_of_stack.last_mut().unwrap().push(ASTNode::Expr(expr));
   }
   
@@ -350,7 +350,7 @@ impl<'i> vbaVisitor<'i> for Visitor {
       CONCAT => Op::Concat,
       _ => panic!()
     };
-    let expr = Expr::BinOp(op, std::rc::Rc::new(e1), std::rc::Rc::new(e2));
+    let expr = Expr::BinOp(op, Box::new(e1), Box::new(e2));
     self.stack_of_stack.last_mut().unwrap().push(ASTNode::Expr(expr));
   }
   
