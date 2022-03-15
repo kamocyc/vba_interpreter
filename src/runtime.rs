@@ -63,7 +63,7 @@ impl Env {
     }
   }
   
-  fn append_global(&mut self, values: HashMap<Id, Value>) {
+  pub fn append_global(&mut self, values: HashMap<Id, Value>) {
     for value in values {
       self.global.insert(value.0, value.1);
     }
@@ -71,6 +71,10 @@ impl Env {
   
   fn push_stack(&mut self) {
     self.stack.push(HashMap::new());
+  }
+  
+  fn pop_stack(&mut self)-> HashMap<Id, Value> {
+    self.stack.pop().unwrap()
   }
   
   fn assign_local_var(&mut self, id: &String, value: Value) {
@@ -152,14 +156,7 @@ fn cast_to_string(value: Value)-> String {
 impl Program {
   pub fn new()-> Self { Self {} }
   
-  pub fn evaluate_program(&self, module: Module, env: &mut Env, entry_function: &String)-> Value {
-    let mut functions = HashMap::new();
-    for function in module.functions {
-      functions.insert(function.id.clone(), Value::Function(Rc::new(Function::new(function))));
-    }
-    
-    env.append_global(functions);
-    
+  pub fn evaluate_program(&self, env: &mut Env, entry_function: &String)-> Value {    
     println!("{:?}", env);
     
     match env.get_opt(entry_function) {
@@ -194,7 +191,11 @@ impl Program {
         
         self.evaluate_block(env, &(body));
         
-        env.get(&function.id).clone()
+        let return_value = env.get(&function.id).clone();
+        
+        env.pop_stack();
+        
+        return_value
       }
     }
     
@@ -248,6 +249,9 @@ impl Program {
             _ => panic!()
           }
         },
+        Statement::Dim(_) => {
+          // do nothing
+        }
       }
     }
   }

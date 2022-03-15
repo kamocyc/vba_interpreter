@@ -33,6 +33,8 @@ enum ASTNode {
   LexSymbol(isize),
   Id(String),
   Module(Module),
+  Dim(Typename),
+  Typename(Typename),
 }
 
 struct Visitor {
@@ -82,6 +84,25 @@ macro_rules! extract {
     {
       assert!($stack.len() >= 1, "extract: stack empty");
       match $stack.pop().unwrap() { $pat(e) => e, e => panic!("extract: pattern not matched: {:?}", e) }
+    }
+  };
+}
+
+macro_rules! extract_opt {
+  ($stack:ident, $pat:path) => {
+    {
+      match $stack.pop() {
+        None => panic!("extract: stack empty"),
+        Some(l) => {
+          match l {
+            $pat(e) => Some(e),
+            _ => {
+              $stack.push(l);
+              None
+            }
+          }
+        }
+      }
     }
   };
 }
@@ -196,10 +217,15 @@ impl<'i> vbaVisitor<'i> for Visitor {
     let mut stack = self.stack_of_stack.pop().unwrap();
     
     let body = extract!(stack, ASTNode::Block);
+    let return_type: Typename =
+      match extract_opt!(stack, ASTNode::Typename) {
+        Some(e) => e,
+        None => Typename::Variant
+      };
     let parameters = extract_opt_vec!(stack, ASTNode::Params);
     let id = extract!(stack, ASTNode::Id);
     
-    let e = Function { id, parameters, body: body };
+    let e = Function { id, parameters, body: body, return_type: return_type };
     self.stack_of_stack.last_mut().unwrap().push(ASTNode::Function(e));
   }
   
@@ -239,6 +265,21 @@ impl<'i> vbaVisitor<'i> for Visitor {
       };
     
     self.stack_of_stack.last_mut().unwrap().push(ASTNode::Statement(Statement::Expr(Expr::Var(e))));
+  }
+  
+  fn visit_Statement_variable_declaration(&mut self, ctx: &Statement_variable_declarationContext<'i>) {
+    self.stack_of_stack.push(Vec::new());
+    self.visit_children(ctx);
+    let mut stack = self.stack_of_stack.pop().unwrap();
+    
+    let typename =
+      if stack.len() == 0 {
+        Typename::Variant
+      } else {
+        extract!(stack, ASTNode::Typename)
+      };
+    
+    self.stack_of_stack.last_mut().unwrap().push(ASTNode::Statement(Statement::Dim(typename)));
   }
   
   fn visit_Statement_If(&mut self, ctx: &Statement_IfContext<'i>) {
@@ -360,6 +401,16 @@ impl<'i> vbaVisitor<'i> for Visitor {
     let mut stack = self.stack_of_stack.pop().unwrap();
     let arguments = extract_list!(stack, ASTNode::Expr);
     self.stack_of_stack.last_mut().unwrap().push(ASTNode::Arguments(arguments));
+  }
+  
+  fn visit_Typename_Int(&mut self, _ctx: &Typename_IntContext<'i>) {
+    self.stack_of_stack.last_mut().unwrap().push(ASTNode::Typename(Typename::Int));
+  }
+  fn visit_Typename_String(&mut self, _ctx: &Typename_StringContext<'i>) {
+    self.stack_of_stack.last_mut().unwrap().push(ASTNode::Typename(Typename::String));
+  }
+  fn visit_Typename_Variant(&mut self, _ctx: &Typename_VariantContext<'i>) {
+    self.stack_of_stack.last_mut().unwrap().push(ASTNode::Typename(Typename::Variant));
   }
 }
 

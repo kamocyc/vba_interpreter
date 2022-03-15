@@ -12,6 +12,7 @@ pub struct Function {
   pub id: Id,
   pub parameters: Vec<Id>,
   pub body: Block,
+  pub return_type: Typename
 }
 
 #[derive(Debug, Clone)]
@@ -20,11 +21,19 @@ pub struct Block {
 }
 
 #[derive(Debug, Clone)]
+pub enum Typename {
+  Int,
+  String,
+  Variant
+}
+
+#[derive(Debug, Clone)]
 pub enum Statement {
   Assign(Chain, Expr),
   If(Expr, Block, Option<Block>),
   For(Id, Expr, Expr, Block),
   Expr(Expr),
+  Dim(Typename)
 }
 
 #[derive(Debug, Clone)]

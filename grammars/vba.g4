@@ -2,9 +2,14 @@ grammar vba;
 
 startRule: module ;
 module : line_end* (function line_end*)+ ;
-function : FUNCTION ID LPAREN params? RPAREN line_end+ block line_end+ END_FUNCTION ;
+function : function_modifier? FUNCTION ID LPAREN params? RPAREN (AS type_name)? line_end+ block line_end+ END_FUNCTION ;
 params : param (COMMA param)*;
-param : ID ;
+param : ID (AS type_name)?;
+function_modifier :
+    PUBLIC    # Function_modifier_Public
+  | PRIVATE   # Function_modifier_Private
+;
+
 block : statements? ;
 statements : statement (line_end+ statement)* ;
 statement
@@ -13,8 +18,9 @@ statement
   | FOR ID EQUAL expr TO expr line_end+ block line_end+ NEXT # Statement_For
   | expr           # Statement_Expr
   | chain_expr arguments   # Statement_Call
+  | variable_declaration ID (AS type_name)?  # Statement_variable_declaration
   ;
-  
+
 line_end :
   (COMMENT)? NEWLINE;
 
@@ -39,14 +45,18 @@ app_expr : ID (LPAREN arguments? RPAREN)? ;
   
 arguments
   : expr (COMMA expr)*;
-  
-// expr returns [String v]
-//   : a=e op='*' b=e  { crate::gen::ty::TY { a: 10, b: 20 }; $v = "* ".to_owned() + $a.v + " " + $b.v; }  # mult
-//   | a=e '+' b=e     { $v = "+ ".to_owned() + $a.v + " " + $b.v; }  # add
-//   | INT             { $v = $INT.text.to_owned(); }                 # anInt
-//   | '(' x=e ')'     { $v = $x.v; }                                 # parens
-//   | ID              { $v = $ID.text.to_owned(); }                  # anID
-//   ;
+
+variable_declaration :
+      DIM         # Variable_declaration_Dim
+    | PUBLIC      # Variable_declaration_Public
+    | PRIVATE     # Variable_declaration_Private
+;
+
+type_name :
+      TYPE_INT       # Typename_Int
+    | TYPE_STRING    # Typename_String
+    | TYPE_VARIANT  # Typename_Variant
+;
 
 COMMENT : SINGLEQUOTE (~[\r\n\u2028\u2029])*;
 SINGLEQUOTE : '\'' ;
@@ -59,9 +69,16 @@ NEQ : '<>';
 STRINGLITERAL : '"' (~["\r\n] | '""')* '"';
 PERIOD: '.' ;
 FUNCTION : 'Function' ;
+PUBLIC : 'Public' ;
+PRIVATE : 'Private' ;
 END_FUNCTION : 'End Function' ;
 NEWLINE : [\r\n\u2028\u2029]+;
 IF : 'If' ;
+DIM : 'Dim' ;
+AS : 'As' ;
+TYPE_STRING : 'String' ;
+TYPE_INT : 'Int' ;
+TYPE_VARIANT : 'Variant' ;
 THEN : 'Then' ;
 ELSE : 'Else' ;
 END_IF : 'End If';

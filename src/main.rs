@@ -17,6 +17,7 @@ mod runtime;
 
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::env;
 
 macro_rules! hashmap {
   ($( $key: expr => $val: expr ),*) => {{
@@ -26,27 +27,45 @@ macro_rules! hashmap {
   }}
 }
 
-fn main() {
-  let filename = "test/test1.bas";
-  let module = crate::gen::parse(filename);
+fn prepare_global_env()-> crate::runtime::Env {
+  crate::runtime::Env::new(
+    vec![
+      ("Debug".to_owned(),
+      crate::runtime::Value::Object(Rc::new(crate::runtime::Object {
+        fields: HashMap::new(),
+        methods: hashmap!["Print".to_owned() => crate::runtime::Function{
+            id: "Print".to_owned(),
+            parameters: vec!["message".to_owned()],
+            body: crate::runtime::FunctionBody::Native(crate::native::debug::print)
+          }]
+      }))),
+    ]
+  )
+}
+
+fn add_global_env(env: &mut crate::runtime::Env, module: crate::gen::ast::Module) {
+  let mut functions = HashMap::new();
+  for function in module.functions {
+    functions.insert(function.id.clone(), crate::runtime::Value::Function(Rc::new(crate::runtime::Function::new(function))));
+  }
   
-  let mut global_env =
-    crate::runtime::Env::new(
-      vec![
-        ("Debug".to_owned(),
-        crate::runtime::Value::Object(Rc::new(crate::runtime::Object {
-          fields: HashMap::new(),
-          methods: hashmap!["Print".to_owned() => crate::runtime::Function{
-              id: "Print".to_owned(),
-              parameters: vec!["message".to_owned()],
-              body: crate::runtime::FunctionBody::Native(crate::native::debug::print)
-            }]
-        }))),
-      ]
-    );
+  env.append_global(functions);
+}
+
+fn main() {
+  // 最初に読み込んだファイルのmain関数をエントリポイントとする。
+  let args: Vec<String> = env::args().collect();
+  let mut global_env = prepare_global_env();
+  for (i, arg) in args.iter().enumerate() {
+    if i >= 1 {
+      println!("{}", &arg);
+      let module = crate::gen::parse(&arg);
+      add_global_env(&mut global_env, module);
+    }
+  }
     
   let prog = crate::runtime::Program::new();
-  let result = prog.evaluate_program(module, &mut global_env, &"main".to_owned());
+  let result = prog.evaluate_program(&mut global_env, &"main".to_owned());
   
   println!("result: {:?}", result);
 }
