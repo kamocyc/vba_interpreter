@@ -3,70 +3,114 @@
 #![allow(unused_parens)]
 
 mod gen;
+mod runtime;
+mod static_checker;
 
 mod native {
+  use crate::runtime::Value;
+  
   pub mod debug {
-    pub fn print(arguments: &Vec<crate::runtime::Value>)-> crate::runtime::Value {
+    use crate::runtime::Value;
+    
+    pub fn print(arguments: &Vec<Value>)-> Value {
       println!("printed: {:?}", arguments[0]);
-      crate::runtime::Value::Int(0)
+      Value::Int(0)
     }
   }
-}
-
-mod runtime;
-
-use std::collections::HashMap;
-use std::rc::Rc;
-use std::env;
-
-macro_rules! hashmap {
-  ($( $key: expr => $val: expr ),*) => {{
-    let mut map = ::std::collections::HashMap::new();
-    $( map.insert($key, $val); )*
-    map
-  }}
-}
-
-fn prepare_global_env()-> crate::runtime::Env {
-  crate::runtime::Env::new(
-    vec![
-      (Rc::new("Debug".to_owned()),
-      crate::runtime::Value::Object(Rc::new(crate::runtime::Object {
-        fields: HashMap::new(),
-        methods: hashmap![Rc::new("Print".to_owned()) => crate::runtime::Function{
-            id: Rc::new("Print".to_owned()),
-            parameters: vec![crate::runtime::Parameter {name: Rc::new("message".to_owned()), typename: crate::gen::ast::Typename::Variant}],
-            body: crate::runtime::FunctionBody::Native(crate::native::debug::print)
-          }]
-      }))),
-      // ("CStr".to_owned(),
-      // crate::runtime::Value::Function(
-      //   id: "CStr".to_owned(),
-      //   parameters: vec![Parameter {name: "n".to_owned(), typename: crate::gen::ast::Typename::Integer}]
-      // )
-      // )
-    ]
-  )
-}
-
-fn add_global_env(env: &mut crate::runtime::Env, module: crate::gen::ast::Module) {
-  let mut functions = HashMap::new();
-  for function in module.functions {
-    functions.insert(Rc::clone(&function.name), crate::runtime::Value::Function(Rc::new(crate::runtime::Function::new(function))));
+  
+  pub fn msgbox(arguments: &Vec<Value>)-> Value {
+    println!("msgbox: {:?}", arguments[0]);
+    Value::Int(0)
   }
   
-  env.append_global(functions);
+  pub fn inputbox(arguments: &Vec<Value>)-> Value {
+    println!("{:?}", arguments[0]);
+    let mut s = String::new();
+    std::io::stdin().read_line(&mut s).ok();
+    Value::String(std::rc::Rc::new(s))
+  }
 }
+
+mod prepare {
+  use std::collections::HashMap;
+  use std::rc::Rc;
+  use crate::gen::ast::Typename;
+  use crate::runtime::{Env, Value, Object, Function, Parameter, FunctionBody};
+  // use crate::runtime::*;
+  // use crate::runtime::Function;
+
+  macro_rules! hashmap {
+    ($( $key: expr => $val: expr ),*) => {{
+      let mut map = ::std::collections::HashMap::new();
+      $( map.insert($key, $val); )*
+      map
+    }}
+  }
+
+  fn create_function_pair(name: &str, parameters: Vec<(&str, Typename)>, body: fn(&Vec<crate::runtime::Value>) -> crate::runtime::Value)-> (Rc<String>, Value) {
+    (
+      Rc::new(name.to_owned()),
+      Value::Function(
+        Rc::new(Function {
+          id: Rc::new(name.to_owned()),
+          parameters: parameters.iter().map(|(name, typname)| Parameter {name: Rc::new(name.to_string()), typename: typname.clone()}).collect(),
+          body: FunctionBody::Native(body),
+        })
+      )
+    )
+  }
+  
+  pub fn prepare_global_env()-> Env {
+    Env::new(
+      vec![
+        (
+          Rc::new("Debug".to_owned()),
+          Value::Object(Rc::new(Object {
+            fields: HashMap::new(),
+            methods: hashmap![Rc::new("Print".to_owned()) => Function{
+                id: Rc::new("Print".to_owned()),
+                parameters: vec![Parameter {name: Rc::new("message".to_owned()), typename: Typename::Variant}],
+                body: FunctionBody::Native(crate::native::debug::print)
+              }]
+          }))
+        ),
+        create_function_pair("MsgBox", vec![("Prompt", Typename::String)], crate::native::msgbox),
+        create_function_pair("InputBox", vec![("Prompt", Typename::String)], crate::native::inputbox),
+        
+        // ("CStr".to_owned(),
+        // Value::Function(
+        //   id: "CStr".to_owned(),
+        //   parameters: vec![Parameter {name: "n".to_owned(), typename: Typename::Integer}]
+        // )
+        // )
+      ]
+    )
+  }
+
+  pub fn add_global_env(env: &mut Env, module: crate::gen::ast::Module) {
+    let mut functions = HashMap::new();
+    for function in module.functions {
+      functions.insert(Rc::clone(&function.name), Value::Function(Rc::new(Function::new(function))));
+    }
+    
+    env.append_global(functions);
+  }
+}
+
+use std::env;
+use std::rc::Rc;
 
 fn main() {
   // 最初に読み込んだファイルのmain関数をエントリポイントとする。
   let args: Vec<String> = env::args().collect();
-  let mut global_env = prepare_global_env();
+  let mut global_env = prepare::prepare_global_env();
   for (i, arg) in args.iter().enumerate() {
     if i >= 1 {
       println!("{}", &arg);
       let module = crate::gen::parse(&arg);
-      add_global_env(&mut global_env, module);
+      let option_explicit = true;
+      crate::static_checker::check_module(&module, &global_env, option_explicit);
+      prepare::add_global_env(&mut global_env, module);
     }
   }
     

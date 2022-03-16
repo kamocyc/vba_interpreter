@@ -71,6 +71,10 @@ impl Env {
     }
   }
   
+  pub fn get_global_names(&self)-> Vec<Id> {
+    self.global.keys().map(|id| Rc::clone(id)).collect()
+  }
+  
   pub fn append_global(&mut self, values: HashMap<Id, Value>) {
     for value in values {
       self.global.insert(value.0, value.1);
@@ -270,7 +274,7 @@ impl Program {
             _ => panic!()
           }
         },
-        Statement::VariableDeclaration(_, _) => {
+        Statement::VariableDeclaration(_, _, _) => {
           // do nothing
         }
       }

@@ -1,8 +1,9 @@
 grammar vba;
 
 startRule: module EOF ;
-module : line_end* (function line_end*)+ ;
+module : line_end* ((function | procedure) line_end*)+ ;
 function : function_modifier? FUNCTION ID LPAREN params? RPAREN (AS type_name)? line_end+ block line_end+ END_FUNCTION ;
+procedure : function_modifier? SUB ID LPAREN params? RPAREN line_end+ block line_end+ END_SUB ;
 params : param (COMMA param)*;
 param : ID (AS type_name)?;
 function_modifier :
@@ -15,7 +16,7 @@ statements : statement (line_end+ statement)* ;
 statement
   : chain_expr EQUAL expr  # Statement_Assign
   | IF expr THEN line_end* block line_end* (ELSE line_end* block line_end*)? END_IF # Statement_If
-  | FOR ID EQUAL expr TO expr line_end+ block line_end+ NEXT # Statement_For
+  | FOR ID EQUAL expr TO expr line_end+ block line_end+ NEXT ID? # Statement_For
   | expr           # Statement_Expr
   | chain_expr arguments   # Statement_Call
   | variable_declaration ID (AS type_name)?  # Statement_variable_declaration
@@ -59,9 +60,10 @@ type_name :
     | TYPE_BOOLEAN   # Typename_Boolean
 ;
 
-COMMENT : SINGLEQUOTE (~[\r\n\u2028\u2029])*;
+COMMENT : (SINGLEQUOTE | REM) (~[\r\n\u2028\u2029])*;
 SINGLEQUOTE : '\'' ;
 
+REM : 'Rem' ;
 GEQ : '>=';
 GT : '>';
 LEQ : '<=';
@@ -70,6 +72,8 @@ NEQ : '<>';
 STRINGLITERAL : '"' (~["\r\n] | '""')* '"';
 PERIOD: '.' ;
 FUNCTION : 'Function' ;
+SUB : 'Sub' ;
+END_SUB : 'End Sub' ;
 PUBLIC : 'Public' ;
 PRIVATE : 'Private' ;
 END_FUNCTION : 'End Function' ;
@@ -100,4 +104,4 @@ EQUAL : '=' ;
 AND : 'And';
 OR : 'Or' ;
 CONCAT : '&' ;
-ID : ('a'..'z'|'A'..'Z')+ ;
+ID : ('a'..'z'|'A'..'Z')('a'..'z'|'A'..'Z'|'0'..'9'|'_')* ;

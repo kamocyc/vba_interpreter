@@ -262,7 +262,27 @@ impl<'i> vbaVisitor<'i> for Visitor {
         None => Typename::Variant
       };
     let body = extract!(stack, ASTNode::Block);
-    let e = Function { modifier, name: Rc::new(name), parameters, body: body, return_typename: return_typename };
+    let e = Function { modifier, function_type: FunctionType::Function, name: Rc::new(name), parameters, body: body, return_typename: return_typename };
+    
+    self.return_node(ASTNode::Function(e));
+  }
+  
+  fn visit_procedure(&mut self, ctx: &ProcedureContext<'i>) {
+    let mut stack = visit_rec!(self, ctx);
+    
+    let modifier =
+      match extract_opt!(stack, ASTNode::LexSymbol) {
+        Some(m) => match m {
+          PUBLIC  => Modifier::Public,
+          PRIVATE => Modifier::Private,
+          _ => unreachable!()
+        },
+        None => Modifier::Public
+      };
+    let name = extract!(stack, ASTNode::Id);
+    let parameters = extract_opt_vec!(stack, ASTNode::Params);
+    let body = extract!(stack, ASTNode::Block);
+    let e = Function { modifier, function_type: FunctionType::Procedure, name: Rc::new(name), parameters, body: body, return_typename: Typename::Variant };
     
     self.return_node(ASTNode::Function(e));
   }
@@ -309,7 +329,7 @@ impl<'i> vbaVisitor<'i> for Visitor {
       PRIVATE => VariableDeclarationType::Private,
       _ => unreachable!()
     };
-    
+    let id = extract!(stack, ASTNode::Id);
     let typename =
       if stack.len() == 0 {
         Typename::Variant
@@ -317,7 +337,7 @@ impl<'i> vbaVisitor<'i> for Visitor {
         extract!(stack, ASTNode::Typename)
       };
     
-    self.return_node(ASTNode::Statement(Statement::VariableDeclaration(variable_declaration, typename)));
+    self.return_node(ASTNode::Statement(Statement::VariableDeclaration(variable_declaration, Rc::new(id), typename)));
   }
   
   fn visit_Statement_If(&mut self, ctx: &Statement_IfContext<'i>) {
@@ -347,6 +367,10 @@ impl<'i> vbaVisitor<'i> for Visitor {
     let expr1 = extract!(stack, ASTNode::Expr);
     let expr2 = extract!(stack, ASTNode::Expr);
     let block = extract!(stack, ASTNode::Block);
+    match extract_opt!(stack, ASTNode::Id) {
+      Some(name_) => if name_ != name { panic!("\"for\" variable mismatch"); },
+      None => ()
+    }
     
     self.return_node(ASTNode::Statement(Statement::For(Rc::new(name), expr1, expr2, block)));  
   }

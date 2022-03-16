@@ -1,8 +1,19 @@
+Private Sub say_helloworld_Click()
+   MsgBox "Hi"
+End Sub
+
+Rem This is comment
+
 Function add(x As Integer, y As Integer) As Integer
   add = x + y
 End Function
 
-Function main()
+Sub main()
+  say_helloworld_Click
+  
+  Dim a As Integer
+  Dim b As Integer
+  
   a = 10
   b = 5
   
@@ -11,20 +22,24 @@ Function main()
     b = 20
   End If
   
+  Dim sum As Integer
+  Dim i As Integer
+  
   sum = 0
   For i = 1 To 10
     sum = sum + i
-  Next
+  Next i
   
   Debug.Print "a"
   Debug.Print a + add(5 * 3, b)
   
-  aa()
+  aa
   
-  main = "あいうえお" & "かきく: " & sum
-End Function
+  Debug.Print "あいうえお" & "かきく: " & sum
+  ' main = 
+End Sub
 
 ' 現状、空の関数が書けない。後で直す
-Function aa()
+Sub aa()
   Debug.Print "b"
-End Function
+End Sub
