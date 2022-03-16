@@ -16,6 +16,7 @@ use antlr_rust::token::Token;
 use antlr_rust::tree::VisitChildren;
 // use antlr_rust::tree::ParseTree;
 
+use std::rc::Rc;
 use std::borrow::Cow;
 use std::collections::VecDeque;
 
@@ -53,7 +54,7 @@ impl<'i> ParseTreeVisitor<'i, vbaParserContextType> for Visitor {
       },
       vbaparser::STRINGLITERAL => {
         if let Cow::Borrowed(s) = node.symbol.text {
-          self.return_node(ASTNode::Expr(Expr::String(s[1..s.len()-1].to_owned())));
+          self.return_node(ASTNode::Expr(Expr::String(Rc::new(s[1..s.len()-1].to_owned()))));
         } else { panic!(); }
       },
       sym => {
@@ -205,10 +206,10 @@ impl<'i> vbaVisitor<'i> for Visitor {
   fn visit_app_expr(&mut self, ctx: &App_exprContext<'i>) {
     let mut stack = visit_rec!(self, ctx);
     
-    let id = extract!(stack, ASTNode::Id);
+    let name = extract!(stack, ASTNode::Id);
     let args = extract_opt_vec!(stack, ASTNode::Arguments);
     
-    self.return_node(ASTNode::App(App {id: id, arguments: args}));
+    self.return_node(ASTNode::App(App {name: Rc::new(name), arguments: args}));
   }
   
   fn visit_module(&mut self, ctx: &ModuleContext<'i>) {
@@ -229,7 +230,7 @@ impl<'i> vbaVisitor<'i> for Visitor {
         None => Typename::Variant
       };
     
-    self.return_node(ASTNode::Param(Parameter {name, typename}));
+    self.return_node(ASTNode::Param(Parameter {name: Rc::new(name), typename}));
     
   }
   
@@ -253,7 +254,7 @@ impl<'i> vbaVisitor<'i> for Visitor {
         },
         None => Modifier::Public
       };
-    let id = extract!(stack, ASTNode::Id);
+    let name = extract!(stack, ASTNode::Id);
     let parameters = extract_opt_vec!(stack, ASTNode::Params);
     let return_typename: Typename =
       match extract_opt!(stack, ASTNode::Typename) {
@@ -261,7 +262,7 @@ impl<'i> vbaVisitor<'i> for Visitor {
         None => Typename::Variant
       };
     let body = extract!(stack, ASTNode::Block);
-    let e = Function { modifier, id, parameters, body: body, return_typename: return_typename };
+    let e = Function { modifier, name: Rc::new(name), parameters, body: body, return_typename: return_typename };
     
     self.return_node(ASTNode::Function(e));
   }
@@ -292,8 +293,8 @@ impl<'i> vbaVisitor<'i> for Visitor {
     let e2 = extract!(stack, ASTNode::Arguments);
     let e =
       match e1 {
-        Chain::App(App {id, arguments: _}) => Chain::App(App {id, arguments: e2}),
-        Chain::Method(chain, App {id, arguments: _}) => Chain::Method(chain, App {id, arguments: e2})
+        Chain::App(App {name, arguments: _}) => Chain::App(App {name, arguments: e2}),
+        Chain::Method(chain, App {name, arguments: _}) => Chain::Method(chain, App {name, arguments: e2})
       };
     
     self.return_node(ASTNode::Statement(Statement::Expr(Expr::Var(e))));
@@ -341,13 +342,13 @@ impl<'i> vbaVisitor<'i> for Visitor {
   fn visit_Statement_For(&mut self, ctx: &Statement_ForContext<'i>) {
     let mut stack = visit_rec!(self, ctx);
     
-    let id = extract!(stack, ASTNode::Id);
+    let name = extract!(stack, ASTNode::Id);
     extract!(stack, ASTNode::LexSymbol);
     let expr1 = extract!(stack, ASTNode::Expr);
     let expr2 = extract!(stack, ASTNode::Expr);
     let block = extract!(stack, ASTNode::Block);
     
-    self.return_node(ASTNode::Statement(Statement::For(id, expr1, expr2, block)));  
+    self.return_node(ASTNode::Statement(Statement::For(Rc::new(name), expr1, expr2, block)));  
   }
   
   fn visit_Statement_Expr(&mut self, ctx: &Statement_ExprContext<'i>) {

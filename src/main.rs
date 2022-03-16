@@ -30,12 +30,12 @@ macro_rules! hashmap {
 fn prepare_global_env()-> crate::runtime::Env {
   crate::runtime::Env::new(
     vec![
-      ("Debug".to_owned(),
+      (Rc::new("Debug".to_owned()),
       crate::runtime::Value::Object(Rc::new(crate::runtime::Object {
         fields: HashMap::new(),
-        methods: hashmap!["Print".to_owned() => crate::runtime::Function{
-            id: "Print".to_owned(),
-            parameters: vec![crate::runtime::Parameter {name: "message".to_owned(), typename: crate::gen::ast::Typename::Variant}],
+        methods: hashmap![Rc::new("Print".to_owned()) => crate::runtime::Function{
+            id: Rc::new("Print".to_owned()),
+            parameters: vec![crate::runtime::Parameter {name: Rc::new("message".to_owned()), typename: crate::gen::ast::Typename::Variant}],
             body: crate::runtime::FunctionBody::Native(crate::native::debug::print)
           }]
       }))),
@@ -52,7 +52,7 @@ fn prepare_global_env()-> crate::runtime::Env {
 fn add_global_env(env: &mut crate::runtime::Env, module: crate::gen::ast::Module) {
   let mut functions = HashMap::new();
   for function in module.functions {
-    functions.insert(function.id.clone(), crate::runtime::Value::Function(Rc::new(crate::runtime::Function::new(function))));
+    functions.insert(Rc::clone(&function.name), crate::runtime::Value::Function(Rc::new(crate::runtime::Function::new(function))));
   }
   
   env.append_global(functions);
@@ -71,7 +71,7 @@ fn main() {
   }
     
   let prog = crate::runtime::Program::new();
-  let result = prog.evaluate_program(&mut global_env, &"main".to_owned());
+  let result = prog.evaluate_program(&mut global_env, Rc::new("main".to_owned()));
   
   println!("result: {:?}", result);
 }

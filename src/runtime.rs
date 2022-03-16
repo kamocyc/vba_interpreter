@@ -2,6 +2,8 @@ use std::rc::Rc;
 use crate::gen::ast::*;
 use std::collections::HashMap;
 
+type Id = Rc<String>;
+
 #[derive(Debug)]
 pub struct Object {
   pub fields: HashMap<Id, Value>,
@@ -24,8 +26,8 @@ pub struct Function {
 impl Function {
   pub fn new(ast_function: crate::gen::ast::Function)-> Self {
     Self {
-      id: ast_function.id,
-      parameters: ast_function.parameters.iter().map(|param| Parameter {name: param.name.clone(), typename: param.typename.clone()}).collect(),
+      id: ast_function.name,
+      parameters: ast_function.parameters.iter().map(|param| Parameter {name: Rc::clone(&param.name), typename: param.typename.clone()}).collect(),
       body: FunctionBody::VBA(ast_function.body)
     }
   }
@@ -45,7 +47,7 @@ impl std::fmt::Debug for FunctionBody {
 pub enum Value {
   Int(i32),
   Bool(bool),
-  String(String),
+  String(Rc<String>),
   Function(Rc<Function>),
   Object(Rc<Object>),
 }
@@ -60,7 +62,7 @@ impl Env {
   pub fn new(global: Vec<(Id, Value)>)-> Self {
     let mut g = HashMap::new();
     for (id, g_) in global {
-      g.insert(id.clone(), g_);
+      g.insert(Rc::clone(&id), g_);
     }
     
     Self {
@@ -83,8 +85,8 @@ impl Env {
     self.stack.pop().unwrap()
   }
   
-  fn assign_local_var(&mut self, id: &String, value: Value) {
-    self.stack.last_mut().unwrap().insert(id.clone(), value);
+  fn assign_local_var(&mut self, id: Rc<String>, value: Value) {
+    self.stack.last_mut().unwrap().insert(id, value);
     // println!("assigned: {:?}", self.stack);
   }
   
@@ -145,15 +147,15 @@ fn cast_to_bool(value: Value)-> bool {
   match value {
     Value::Int(i) => i != 0,
     Value::Bool(b) => b,
-    Value::String(s) => /* TODO */ s != "",
+    Value::String(s) => /* TODO */ *s != "",
     Value::Object(_) | Value::Function(_) => panic!("cast_to_bool: illegal")
   }
 }
 
-fn cast_to_string(value: Value)-> String {
+fn cast_to_string(value: Value)-> Rc<String> {
   match value {
-    Value::Int(i) => i.to_string(),
-    Value::Bool(b) => if b { "True".to_owned() } else { "False".to_owned() },
+    Value::Int(i) => Rc::new(i.to_string()),
+    Value::Bool(b) => if b { Rc::new("True".to_owned()) } else { Rc::new("False".to_owned()) },
     Value::String(s) => s,
     Value::Object(_) | Value::Function(_) => panic!("cast_to_string: illegal")
   }
@@ -162,10 +164,10 @@ fn cast_to_string(value: Value)-> String {
 impl Program {
   pub fn new()-> Self { Self {} }
   
-  pub fn evaluate_program(&self, env: &mut Env, entry_function: &String)-> Value {    
+  pub fn evaluate_program(&self, env: &mut Env, entry_function: Rc<String>)-> Value {    
     // println!("{:?}", env);
     
-    match env.get_opt(entry_function) {
+    match env.get_opt(&entry_function) {
       Some(value) => {
         match value {
           Value::Function(function) => {
@@ -202,11 +204,11 @@ impl Program {
       FunctionBody::VBA(body) => {
         env.push_stack();
         for (param, arg) in function.parameters.iter().zip(arguments) {
-          env.assign_local_var(&param.name, arg.clone());
+          env.assign_local_var(Rc::clone(&param.name), arg.clone());
         }
         
         // return value of called function
-        env.assign_local_var(&function.id, Value::Int(0));
+        env.assign_local_var(Rc::clone(&function.id), Value::Int(0));
         
         self.evaluate_block(env, &(body));
         
@@ -242,7 +244,7 @@ impl Program {
         },
         Statement::For(id, start_expr, end_expr, block) => {
           let val = self.evaluate_expr(env, start_expr);
-          env.assign_local_var(id, val);
+          env.assign_local_var(Rc::clone(id), val);
           loop {
             let val = self.evaluate_expr(env, end_expr);
             if assert_type!(env.get(id), Value::Int) > cast_to_int(val) {
@@ -252,15 +254,15 @@ impl Program {
             self.evaluate_block(env, block);
             
             let t = assert_type!(env.get(id), Value::Int) + 1;
-            env.assign_local_var(id, Value::Int(t));
+            env.assign_local_var(Rc::clone(id), Value::Int(t));
           }
         },
         Statement::Assign(id, expr) => {
           match id {
-            Chain::App(App {id, arguments}) => {
+            Chain::App(App {name, arguments}) => {
               if arguments.len() == 0 {
                 let val = self.evaluate_expr(env, expr);
-                env.assign_local_var(id, val);
+                env.assign_local_var(Rc::clone(name), val);
               } else {
                 panic!();
               }
@@ -276,9 +278,9 @@ impl Program {
   }
 
   fn evaluate_app(&self, env: &mut Env, app: &App)-> Value {
-    let App {id, arguments} = app;
+    let App {name, arguments} = app;
     
-    match env.get_opt(id) {
+    match env.get_opt(name) {
       Some(value) => {
         match value {
           Value::Function(function) => {
@@ -295,25 +297,25 @@ impl Program {
           }
         }
       },
-      None => panic!("not found: {:?}", id)
+      None => panic!("not found: {:?}", name)
     }
   }
   
   fn invoke_method(&self, env: &mut Env, object: &Object, app: &App)-> Value {
-    let App {id, arguments} = app;
+    let App {name, arguments} = app;
     
-    match object.methods.get(id) {
+    match object.methods.get(name) {
       Some(function) => {
         let args: Vec<Value> = arguments.iter().map(|arg| self.evaluate_expr(env, arg)).collect();
         self.invoke_function(env, function, &args)
       },
       None => {
-        match object.fields.get(id) {
+        match object.fields.get(name) {
           Some(value) => {
             assert!(arguments.len() == 0);
             value.clone()
           },
-          None => panic!("invoke method, not found: {:?}", id)
+          None => panic!("invoke method, not found: {:?}", name)
         }
       }
     }
@@ -381,8 +383,8 @@ impl Program {
           Op::Concat => {
             let s1 = cast_to_string(self.evaluate_expr(env, e1));
             let s2 = cast_to_string(self.evaluate_expr(env, e2));
-            let s = s1 + &s2;
-            Value::String(s.clone())
+            let s = (*s1).clone() + &s2;
+            Value::String(Rc::new(s))
           },
         }
       },
@@ -390,8 +392,7 @@ impl Program {
         Value::Int(*i)
       },
       Expr::String(s) => {
-        // TODO: cloneしない
-        Value::String(s.clone())
+        Value::String(Rc::clone(s))
       },
       Expr::Var(chain) => {
         self.evaluate_chain(env, chain)

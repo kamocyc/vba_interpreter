@@ -1,6 +1,6 @@
-// use std::rc::Rc;
+use std::rc::Rc;
 
-pub type Id = String;
+pub type Id = Rc<String>;
 
 #[derive(Debug, Clone)]
 pub struct Module {
@@ -22,7 +22,7 @@ pub struct Parameter {
 #[derive(Debug, Clone)]
 pub struct Function {
   pub modifier: Modifier,
-  pub id: Id,
+  pub name: Id,
   pub parameters: Vec<Parameter>,
   pub body: Block,
   pub return_typename: Typename
@@ -58,7 +58,7 @@ pub enum Statement {
 #[derive(Debug, Clone)]
 pub enum Expr {
   Int(i32),
-  String(String),
+  String(Rc<String>),
   Var(Chain),
   BinOp(Op, Box<Expr>, Box<Expr>)
 }
@@ -88,6 +88,6 @@ pub enum Chain {
 
 #[derive(Debug, Clone)]
 pub struct App {
-  pub id: Id,
+  pub name: Id,
   pub arguments: Vec<Expr>
 }
