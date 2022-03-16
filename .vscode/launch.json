@@ -1,0 +1,46 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'vba_interpreter'",
+      "cargo": {
+        "args": [
+          "+nightly-2022-02-23",
+          "build",
+          "--bin=vba_interpreter",
+          "--package=vba_interpreter"
+        ],
+        "filter": {
+          "name": "vba_interpreter",
+          "kind": "bin"
+        }
+      },
+      "args": ["./test/test1.bas"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'vba_interpreter'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=vba_interpreter",
+          "--package=vba_interpreter"
+        ],
+        "filter": {
+          "name": "vba_interpreter",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
