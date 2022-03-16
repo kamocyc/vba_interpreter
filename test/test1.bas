@@ -1,4 +1,4 @@
-Function add(x, y)
+Function add(x As Integer, y As Integer) As Integer
   add = x + y
 End Function
 
@@ -18,6 +18,13 @@ Function main()
   
   Debug.Print "a"
   Debug.Print a + add(5 * 3, b)
-
+  
+  aa()
+  
   main = "あいうえお" & "かきく: " & sum
+End Function
+
+' 現状、空の関数が書けない。後で直す
+Function aa()
+  Debug.Print "b"
 End Function

@@ -9,9 +9,15 @@ pub struct Object {
 }
 
 #[derive(Debug)]
+pub struct Parameter {
+  pub name: Id,
+  pub typename: Typename
+}
+
+#[derive(Debug)]
 pub struct Function {
   pub id: Id,
-  pub parameters: Vec<Id>,
+  pub parameters: Vec<Parameter>,
   pub body: FunctionBody,
 }
 
@@ -19,7 +25,7 @@ impl Function {
   pub fn new(ast_function: crate::gen::ast::Function)-> Self {
     Self {
       id: ast_function.id,
-      parameters: ast_function.parameters,
+      parameters: ast_function.parameters.iter().map(|param| Parameter {name: param.name.clone(), typename: param.typename.clone()}).collect(),
       body: FunctionBody::VBA(ast_function.body)
     }
   }
@@ -79,11 +85,11 @@ impl Env {
   
   fn assign_local_var(&mut self, id: &String, value: Value) {
     self.stack.last_mut().unwrap().insert(id.clone(), value);
-    println!("assigned: {:?}", self.stack);
+    // println!("assigned: {:?}", self.stack);
   }
   
   fn get_opt(&self, id: &String)-> Option<Value> {
-    println!("get: {:?}", self.stack);
+    // println!("get: {:?}", self.stack);
     match self.stack.last() {
       Some(v) => match v.get(id) {
         Some(v) => Some(v.clone()),
@@ -157,7 +163,7 @@ impl Program {
   pub fn new()-> Self { Self {} }
   
   pub fn evaluate_program(&self, env: &mut Env, entry_function: &String)-> Value {    
-    println!("{:?}", env);
+    // println!("{:?}", env);
     
     match env.get_opt(entry_function) {
       Some(value) => {
@@ -174,7 +180,20 @@ impl Program {
   
   fn invoke_function(&self, env: &mut Env, function: &Function, arguments: &Vec<Value>)-> Value {
     // println!("arguments={:?}, function={:?}", arguments, function);
-    assert!(arguments.len() == function.parameters.len());
+    if arguments.len() != function.parameters.len() {
+      panic!("argumnets number mismatched (expected: {}, actual: {})", function.parameters.len(), arguments.len());
+    }
+    
+    for (par, arg) in function.parameters.iter().zip(arguments.iter()) {
+      match (&par.typename, arg) {
+        | (Typename::Integer, Value::Int(_))
+        | (Typename::Boolean, Value::Bool(_))
+        | (Typename::String, Value::String(_))
+        | (Typename::Variant, _)
+          => (),
+        _ => panic!("argument type mismatch (expected: {:?}, actual: {:?})", par.typename, arg)
+      }
+    }
     
     match &function.body {
       FunctionBody::Native(function) => {
@@ -183,7 +202,7 @@ impl Program {
       FunctionBody::VBA(body) => {
         env.push_stack();
         for (param, arg) in function.parameters.iter().zip(arguments) {
-          env.assign_local_var(param, arg.clone());
+          env.assign_local_var(&param.name, arg.clone());
         }
         
         // return value of called function
@@ -249,7 +268,7 @@ impl Program {
             _ => panic!()
           }
         },
-        Statement::Dim(_) => {
+        Statement::VariableDeclaration(_, _) => {
           // do nothing
         }
       }
@@ -371,6 +390,7 @@ impl Program {
         Value::Int(*i)
       },
       Expr::String(s) => {
+        // TODO: cloneしない
         Value::String(s.clone())
       },
       Expr::Var(chain) => {

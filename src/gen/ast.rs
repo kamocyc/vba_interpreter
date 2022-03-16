@@ -8,11 +8,24 @@ pub struct Module {
 }
 
 #[derive(Debug, Clone)]
+pub enum Modifier {
+  Public,
+  Private
+}
+
+#[derive(Debug, Clone)]
+pub struct Parameter {
+  pub name: Id,
+  pub typename: Typename
+}
+
+#[derive(Debug, Clone)]
 pub struct Function {
+  pub modifier: Modifier,
   pub id: Id,
-  pub parameters: Vec<Id>,
+  pub parameters: Vec<Parameter>,
   pub body: Block,
-  pub return_type: Typename
+  pub return_typename: Typename
 }
 
 #[derive(Debug, Clone)]
@@ -22,9 +35,15 @@ pub struct Block {
 
 #[derive(Debug, Clone)]
 pub enum Typename {
-  Int,
+  Integer,
+  Boolean,
   String,
   Variant
+}
+
+#[derive(Debug, Clone)]
+pub enum VariableDeclarationType {
+  Dim, Public, Private
 }
 
 #[derive(Debug, Clone)]
@@ -33,7 +52,7 @@ pub enum Statement {
   If(Expr, Block, Option<Block>),
   For(Id, Expr, Expr, Block),
   Expr(Expr),
-  Dim(Typename)
+  VariableDeclaration(VariableDeclarationType, Typename)
 }
 
 #[derive(Debug, Clone)]

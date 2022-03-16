@@ -35,10 +35,16 @@ fn prepare_global_env()-> crate::runtime::Env {
         fields: HashMap::new(),
         methods: hashmap!["Print".to_owned() => crate::runtime::Function{
             id: "Print".to_owned(),
-            parameters: vec!["message".to_owned()],
+            parameters: vec![crate::runtime::Parameter {name: "message".to_owned(), typename: crate::gen::ast::Typename::Variant}],
             body: crate::runtime::FunctionBody::Native(crate::native::debug::print)
           }]
       }))),
+      // ("CStr".to_owned(),
+      // crate::runtime::Value::Function(
+      //   id: "CStr".to_owned(),
+      //   parameters: vec![Parameter {name: "n".to_owned(), typename: crate::gen::ast::Typename::Integer}]
+      // )
+      // )
     ]
   )
 }

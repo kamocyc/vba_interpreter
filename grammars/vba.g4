@@ -1,13 +1,13 @@
 grammar vba;
 
-startRule: module ;
+startRule: module EOF ;
 module : line_end* (function line_end*)+ ;
 function : function_modifier? FUNCTION ID LPAREN params? RPAREN (AS type_name)? line_end+ block line_end+ END_FUNCTION ;
 params : param (COMMA param)*;
 param : ID (AS type_name)?;
 function_modifier :
-    PUBLIC    # Function_modifier_Public
-  | PRIVATE   # Function_modifier_Private
+    PUBLIC
+  | PRIVATE
 ;
 
 block : statements? ;
@@ -47,15 +47,16 @@ arguments
   : expr (COMMA expr)*;
 
 variable_declaration :
-      DIM         # Variable_declaration_Dim
-    | PUBLIC      # Variable_declaration_Public
-    | PRIVATE     # Variable_declaration_Private
+      DIM
+    | PUBLIC
+    | PRIVATE
 ;
 
 type_name :
       TYPE_INT       # Typename_Int
     | TYPE_STRING    # Typename_String
-    | TYPE_VARIANT  # Typename_Variant
+    | TYPE_VARIANT   # Typename_Variant
+    | TYPE_BOOLEAN   # Typename_Boolean
 ;
 
 COMMENT : SINGLEQUOTE (~[\r\n\u2028\u2029])*;
@@ -77,8 +78,9 @@ IF : 'If' ;
 DIM : 'Dim' ;
 AS : 'As' ;
 TYPE_STRING : 'String' ;
-TYPE_INT : 'Int' ;
+TYPE_INT : 'Integer' ;
 TYPE_VARIANT : 'Variant' ;
+TYPE_BOOLEAN : 'Boolean' ;
 THEN : 'Then' ;
 ELSE : 'Else' ;
 END_IF : 'End If';
