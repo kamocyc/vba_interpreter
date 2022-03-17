@@ -20,7 +20,7 @@
           "kind": "bin"
         }
       },
-      "args": ["./test/test1.bas"],
+      "args": ["./test/test1.bas", "./test/test2.cls"],
       "cwd": "${workspaceFolder}"
     },
     {

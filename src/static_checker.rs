@@ -1,19 +1,6 @@
 use crate::gen::ast::*;
 use std::rc::Rc;
 
-fn s<T>(vec: Vec<T>, eq: (fn(&T, &T) -> bool))-> bool {
-  let mut flag = false;
-  for (i, val) in vec.iter().enumerate() {
-    for j in (i + 1)..(vec.len()) {
-      if eq(val, vec.get(j).unwrap()) {
-        flag = true;
-      }
-    }
-  }
-  
-  flag
-}
-
 pub fn check_module(module: &Module, global_env: &crate::runtime::Env,option_explict: bool) {
   // ここで行うのは識別子のチェック
   // とりあえず、モジュールレベルでの識別子、プロシージャレベルの識別子 をチェックする
@@ -63,14 +50,14 @@ pub fn check_module(module: &Module, global_env: &crate::runtime::Env,option_exp
     let mut found_declarations = function.parameters.iter().map(|a| Rc::clone(&a.name)).collect::<Vec<Id>>();
     for statement in function.body.statements.iter() {
       match statement {
-        Statement::VariableDeclaration(_, id, _) => {
+        Statement::VariableDeclaration(VariableDeclaration {name, ..}) => {
           // 変数が既に宣言されている
-          if found_declarations.contains(id) {
-            panic!("duplicate variable declaration {}", id);
+          if found_declarations.contains(name) {
+            panic!("duplicate variable declaration {}", name);
           }
-          found_declarations.push(Rc::clone(id));
+          found_declarations.push(Rc::clone(name));
         },
-        Statement::Assign(Chain::App(App { name, .. }), _) => {
+        Statement::Assign(_, Chain::App(App { name, .. }), _) => {
           if *name == function.name && function.function_type == FunctionType::Procedure {
             panic!("a return value cannot be assigned to the procedure {}", name);
           }
@@ -81,7 +68,7 @@ pub fn check_module(module: &Module, global_env: &crate::runtime::Env,option_exp
           for variable in variables.iter() {
             if !found_declarations.contains(variable) && !global_names.contains(variable) {
               if option_explict {
-                panic!("undeclared variable {}", variable);
+                panic!("undeclared variable \"{}\"", variable);
               } else {
                 found_declarations.push(Rc::clone(variable));
               }
