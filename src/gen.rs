@@ -36,6 +36,7 @@ enum ASTNode {
   Id(String),
   Module(Module),
   Typename(Typename),
+  OptionExplicit(bool),
   VariableDeclaration(VariableDeclaration),
 }
 
@@ -260,6 +261,11 @@ impl<'i> vbaVisitor<'i> for Visitor {
   fn visit_module(&mut self, ctx: &ModuleContext<'i>) {
     let mut stack = visit_rec!(self, ctx);
     
+    let option_explicit =
+      match extract_opt!(stack, ASTNode::OptionExplicit) {
+        None => false,
+        Some(_) => true,
+      };
     let mut functions = vec![];
     let mut fields = vec![];
     
@@ -273,7 +279,13 @@ impl<'i> vbaVisitor<'i> for Visitor {
       };
     }
     
-    self.return_node(ASTNode::Module(Module{ functions, fields }));
+    self.return_node(ASTNode::Module(Module{ option_explicit, functions, fields }));
+  }
+  
+  fn visit_option_explicit(&mut self, ctx: &Option_explicitContext<'i>) {
+    let mut _stack = visit_rec!(self, ctx);
+    
+    self.return_node(ASTNode::OptionExplicit(true));
   }
   
   fn visit_param(&mut self, ctx: &ParamContext<'i>) {
@@ -459,6 +471,15 @@ impl<'i> vbaVisitor<'i> for Visitor {
     }
     
     self.return_node(ASTNode::Statement(Statement::For(Rc::new(name), expr1, expr2, block)));  
+  }
+  
+  fn visit_Statement_DoWhile(&mut self, ctx: &Statement_DoWhileContext<'i>) {
+    let mut stack = visit_rec!(self, ctx);
+    
+    let expr = extract!(stack, ASTNode::Expr);
+    let block = extract!(stack, ASTNode::Block);
+    
+    self.return_node(ASTNode::Statement(Statement::DoWhile(expr, block)));
   }
   
   fn visit_Statement_Expr(&mut self, ctx: &Statement_ExprContext<'i>) {

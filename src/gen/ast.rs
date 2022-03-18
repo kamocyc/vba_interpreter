@@ -28,6 +28,7 @@ fn append_vec<T>(v1: Vec<T>, v2: Vec<T>)-> Vec<T> {
 
 #[derive(Debug, Clone)]
 pub struct Module {
+  pub option_explicit: bool,
   pub functions: Vec<Function>,
   pub fields: Vec<VariableDeclaration>,
 }
@@ -88,6 +89,7 @@ pub enum Statement {
   Assign(AssignMode, Chain, Expr),
   If(Expr, Block, Option<Block>),
   For(Id, Expr, Expr, Block),
+  DoWhile(Expr, Block),
   Expr(Expr),
   VariableDeclaration(VariableDeclaration)
 }
@@ -111,6 +113,8 @@ impl Statement {
           }),
       Statement::For(id, e1, e2, block) =>
         append_vec(append_vec(append_vec(vec![Rc::clone(id)], e1.get_variables()), e2.get_variables()), block.get_variables()),
+      Statement::DoWhile(e, block) =>
+        append_vec(e.get_variables(), block.get_variables()),
       Statement::Expr(e) => e.get_variables(),
       Statement::VariableDeclaration(VariableDeclaration {name ,..}) => vec![Rc::clone(name)]
     }

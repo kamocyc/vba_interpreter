@@ -1,7 +1,7 @@
 grammar vba;
 
 startRule: module EOF ;
-module : line_end* ((function | procedure | property_let | module_variable_declaration) line_end*)+ ;
+module : line_end* (option_explicit line_end+)? ((function | procedure | property_let | module_variable_declaration) line_end*)+ ;
 function : function_modifier? FUNCTION ID LPAREN params? RPAREN (AS type_name)? line_end+ block line_end+ END_FUNCTION ;
 procedure : function_modifier? SUB ID LPAREN params? RPAREN line_end+ block line_end+ END_SUB ;
 property_let : function_modifier? PROPERTY_LET ID LPAREN param RPAREN line_end+ block line_end+ END_PROPERTY ;
@@ -12,6 +12,8 @@ function_modifier :
   | PRIVATE
 ;
 
+option_explicit: OPTION EXPLICIT ;
+
 block : statements? ;
 statements : statement (line_end+ statement)* ;
 statement
@@ -19,6 +21,7 @@ statement
   | SET chain_expr EQUAL expr  # Statement_SetAssign
   | IF expr THEN line_end* block line_end* (ELSE line_end* block line_end*)? END_IF # Statement_If
   | FOR ID EQUAL expr TO expr line_end+ block line_end+ NEXT ID? # Statement_For
+  | DO WHILE expr line_end+ block line_end+ LOOP # Statement_DoWhile
   | expr           # Statement_Expr
   | chain_expr arguments   # Statement_Call
   | variable_declaration ID (AS type_name)?  # Statement_variable_declaration
@@ -74,6 +77,11 @@ SINGLEQUOTE : '\'' ;
 
 PROPERTY_LET : 'Property Let' ;
 END_PROPERTY : 'End Property' ;
+OPTION : 'Option' ;
+EXPLICIT : 'Explicit' ;
+DO : 'Do' ;
+WHILE : 'While' ;
+LOOP : 'Loop' ;
 REM : 'Rem' ;
 NEW : 'New' ;
 GEQ : '>=';

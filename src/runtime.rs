@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use crate::gen::ast::*;
 use std::collections::HashMap;
 
-type Id = Rc<String>;
+pub type Id = Rc<String>;
 
 #[derive(Debug)]
 pub struct Object {
@@ -17,22 +17,39 @@ pub struct Object {
 #[derive(Debug)]
 pub struct Parameter {
   pub name: Id,
-  pub typename: Typename
+  pub typename: Typename,
+  pub is_optional: bool,
+  pub is_param_array: bool,
+}
+
+pub fn param(name: &str, typename: Typename)-> Parameter {
+  Parameter {
+    name: Rc::new(name.to_string()),
+    typename,
+    is_optional: false,
+    is_param_array: false,
+  }
 }
 
 #[derive(Debug)]
 pub struct Function {
-  pub id: Id,
+  pub modifier: Modifier,
+  pub function_type: FunctionType,
+  pub name: Id,
   pub parameters: Vec<Parameter>,
   pub body: FunctionBody,
+  pub return_typename: Typename
 }
 
 impl Function {
   pub fn new(ast_function: crate::gen::ast::Function)-> Self {
     Self {
-      id: ast_function.name,
-      parameters: ast_function.parameters.iter().map(|param| Parameter {name: Rc::clone(&param.name), typename: param.typename.clone()}).collect(),
-      body: FunctionBody::VBA(ast_function.body)
+      modifier: ast_function.modifier,
+      function_type: ast_function.function_type,
+      name: ast_function.name,
+      parameters: ast_function.parameters.iter().map(|param| Parameter {name: Rc::clone(&param.name), typename: param.typename.clone(), is_optional: false, is_param_array: false}).collect(),
+      body: FunctionBody::VBA(ast_function.body),
+      return_typename: ast_function.return_typename,
     }
   }
 }
@@ -54,8 +71,22 @@ pub enum Value {
   String(Rc<String>),
   Definition(Definition),
   Object(Rc<Object>),
+  Array(Rc<RefCell<Array>>),
   Null,
   Nothing,
+}
+
+#[derive(Debug)]
+pub struct Array {
+  pub data: Vec<Value>,
+}
+
+impl Array {
+  pub fn new(data: Vec<Value>) -> Self {
+    Self {
+      data
+    }
+  }
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +99,7 @@ pub enum Definition {
 #[derive(Debug)]
 pub struct Module {
   pub name: Id,
+  pub option_explicit: bool,
   pub fields: HashMap<Id, Typename>,
   pub functions: HashMap<Id, Rc<Function>>,
   pub setters: HashMap<Id, Rc<Function>>,
@@ -437,6 +469,19 @@ impl Env {
       }
     }
   }
+  
+  pub fn get_vba_modules(&self)-> Vec<Rc<Module>> {
+    let mut modules = Vec::new();
+    for (_, value) in self.global.iter() {
+      match value {
+        Value::Definition(Definition::Module(module)) => {
+          modules.push(Rc::clone(module));
+        },
+        _ => (),
+      }
+    }
+    modules
+  }
 }
 
 pub struct Program {
@@ -464,7 +509,7 @@ pub fn cast_to_int(value: Value)-> i32 {
       }
     },
     Value::Null | Value::Nothing => 0,
-    Value::Object(_) | Value::Definition(_) => panic!("cast_to_int: illegal")
+    Value::Array(_) | Value::Object(_) | Value::Definition(_) => panic!("cast_to_int: illegal")
   }
 }
 
@@ -479,7 +524,7 @@ fn cast_to_bool(value: Value)-> bool {
         _ => panic!("cannot convert to boolean from string: {:?}", s)
       },
     Value::Null | Value::Nothing => false,
-    Value::Object(_) | Value::Definition(_) => panic!("cast_to_bool: illegal")
+    Value::Array(_) | Value::Object(_) | Value::Definition(_) => panic!("cast_to_bool: illegal")
   }
 }
 
@@ -490,6 +535,17 @@ pub fn cast_to_string(value: Value)-> Rc<String> {
     Value::String(s) => s,
     Value::Null => Rc::new("Null".to_owned()),
     Value::Nothing => Rc::new("Nothing".to_owned()),
+    Value::Array(array) => {
+      let mut s = "[".to_owned();
+      for (i, v) in array.borrow().data.iter().enumerate() {
+        if i != 0 {
+          s.push_str(", ");
+        }
+        s.push_str(&cast_to_string(v.clone()).to_string());
+      }
+      s.push_str("]");
+      Rc::new(s)
+    },
     Value::Object(_) | Value::Definition(_)  => panic!("cast_to_string: illegal")
   }
 }
@@ -535,13 +591,32 @@ impl Program {
 
   fn invoke_function(&self, env: &mut Env, current_module: Option<Rc<String>>, object: Option<Rc<Object>>, function: Rc<Function>, arguments: &Vec<Value>)-> Value {
     // println!("arguments={:?}, function={:?}", arguments, function);
-    if arguments.len() != function.parameters.len() {
-      panic!("argumnets number mismatched (expected: {}, actual: {}) (function: {:?})", function.parameters.len(), arguments.len(), function);
-    }
+    let parameter_typenames: Vec<Typename> = {
+      if arguments.len() <= function.parameters.len() {
+        let required_arguments_number = function.parameters.iter().filter(|p| !p.is_optional).count();
+        if arguments.len() < required_arguments_number {
+          panic!("too few arguments (expected: {}, actual: {}) (function: {:?})", function.parameters.len(), arguments.len(), function);
+        }
+        
+        function.parameters.iter().take(arguments.len()).map(|x| x.typename.clone()).collect()
+      } else {
+        let last_parameter = function.parameters.last().unwrap();
+        if !last_parameter.is_param_array {
+          panic!("too many arguments (expected: {}, actual: {}) (function: {:?})", function.parameters.len(), arguments.len(), function);
+        }
+        
+        let mut parameter_typenames: Vec<Typename> = function.parameters.iter().map(|x| x.typename.clone()).collect();
+        for _i in function.parameters.len()..arguments.len() {
+          parameter_typenames.push(last_parameter.typename.clone());
+        }
+        
+        parameter_typenames
+      }
+    };
     
-    let parameters: Vec<(&Parameter, Value)> =
-      function.parameters.iter().zip(arguments.iter()).map(|(par, arg)|
-        match (&par.typename, arg) {
+    let parameters: Vec<(&Typename, Value)> =
+      parameter_typenames.iter().zip(arguments.iter()).map(|(par, arg)|
+        match (&par, arg) {
           | (Typename::Object, _) | (Typename::Id(_), _)=> {
             // TODO: 構造体型などはValueにする
             (par, arg.clone())
@@ -554,27 +629,39 @@ impl Program {
         }
       ).collect();
     
+    let mut arguments = vec![];
     for (par, arg) in parameters.iter() {
-      match (&par.typename, arg) {
+      match (&par, arg) {
         | (Typename::Integer, Value::Integer(_))
         | (Typename::Boolean, Value::Bool(_))
         | (Typename::String, Value::String(_))
         | (Typename::Variant, _)
         | (Typename::Object, Value::Object(_))
-          => (),
+          => {
+            arguments.push(arg.clone());
+          },
         | (Typename::Id(id), Value::Object(object)) => {
           match &object.source_module {
             Some(source_module) => {
               if source_module == id {
-                ()
+                arguments.push(arg.clone());
               } else{
-                panic!("argument type mismatch (2) (expected: {:?}, actual: {:?})", par.typename, arg)
+                panic!("argument type mismatch (2) (expected: {:?}, actual: {:?})", par, arg)
               }
             },
-            None => panic!("argument type mismatch (2) (expected: {:?}, actual: {:?})", par.typename, arg)
+            None => panic!("argument type mismatch (2) (expected: {:?}, actual: {:?})", par, arg)
           }
         },
-        _ => panic!("argument type mismatch (expected: {:?}, actual: {:?})", par.typename, arg)
+        | (Typename::Integer, _) => {
+          arguments.push(Value::Integer(cast_to_int(arg.clone())));
+        }
+        | (Typename::Boolean, _) => {
+          arguments.push(Value::Bool(cast_to_bool(arg.clone())));
+        }
+        | (Typename::String, _) => {
+          arguments.push(Value::String(cast_to_string(arg.clone())));
+        }
+        _ => panic!("argument type mismatch (expected: {:?}, actual: {:?})", par, arg)
       }
     }
     
@@ -593,11 +680,11 @@ impl Program {
         }
         
         // return value of called function
-        env.assign_local_var(Rc::clone(&function.id), Value::Integer(0));
+        env.assign_local_var(Rc::clone(&function.name), Value::Integer(0));
         
         self.evaluate_block(env, current_module, &(body));
         
-        let return_value = env.get(None, &function.id).clone();
+        let return_value = env.get(None, &function.name).clone();
         
         env.pop_stack();
         
@@ -606,13 +693,13 @@ impl Program {
     }
   }
   
-  fn invoke_setter(&self, env: &mut Env, current_module: Option<Rc<String>>, expr: &Expr, id: &Chain, rhs: Value) {
-    let lvalue_result = self.evaluate_chain(env, current_module, id, true, false);
+  fn invoke_setter(&self, env: &mut Env, current_module: Option<Rc<String>>, id: &Chain, rhs: Value) {
+    let lvalue_result = self.evaluate_chain(env, current_module, id, Some(rhs.clone()), true, false);
     match lvalue_result {
       Ok(lvalue) => {
         match lvalue {
           Value::Definition(Definition::Setter(function, object)) => {
-            println!("setter: {:?}", function);
+            // println!("setter: {:?}", function);
             self.invoke_function(env, clone_rc_opt!(object.source_module), Some(Rc::clone(&object)), function, &vec![rhs]);
           },
           Value::Object(object) => {
@@ -628,7 +715,7 @@ impl Program {
               None => { panic!("no default property"); }
             }
           },
-          _ => { panic!("illegal lvalue: {:?} (expr: {:?})", lvalue, expr); }
+          _ => { panic!("illegal lvalue (1): {:?}", lvalue); }
         }
       },
       Err((receiver, field_name)) => {
@@ -646,7 +733,8 @@ impl Program {
               panic!("illegal field name ({})", field_name);
             }
           },
-          _ => panic!("illegal lvalue: {:?} (expr: {:?})", receiver, expr)
+          Value::Array(_) => (),
+          _ => panic!("illegal lvalue (2): {:?}", receiver)
         }
       }
     }
@@ -687,6 +775,16 @@ impl Program {
             env.assign_var(clone_rc_opt!(current_module), Rc::clone(id), Value::Integer(t));
           }
         },
+        Statement::DoWhile(expr, block) => {
+          loop {
+            let val = self.evaluate_expr_primitive(env, clone_rc_opt!(current_module), expr);
+            if !cast_to_bool(val) {
+              break;
+            }
+            
+            self.evaluate_block(env, clone_rc_opt!(current_module), block);
+          }
+        },
         Statement::Assign(assign_mode, id, expr) => {
           let rhs =
             match assign_mode {
@@ -703,10 +801,10 @@ impl Program {
               if arguments.len() == 0 {
                 env.assign_var(clone_rc_opt!(current_module), Rc::clone(name), rhs);
               } else {
-                self.invoke_setter(env, clone_rc_opt!(current_module), expr, id, rhs);
+                self.invoke_setter(env, clone_rc_opt!(current_module), id, rhs);
               }
             },
-            _ => self.invoke_setter(env, clone_rc_opt!(current_module), expr, id, rhs)
+            _ => self.invoke_setter(env, clone_rc_opt!(current_module), id, rhs)
           }
         },
         Statement::VariableDeclaration(VariableDeclaration {name, typename, ..}) => {
@@ -723,7 +821,7 @@ impl Program {
     }
   }
 
-  fn evaluate_app(&self, env: &mut Env, current_module: Option<Rc<String>>, app: &App, has_proceeding_chain: bool)-> Value {
+  fn evaluate_app(&self, env: &mut Env, current_module: Option<Rc<String>>, app: &App, rhs: Option<Value>, _is_lhs: bool, has_proceeding_chain: bool)-> Result<Value, (Value, Id)> {
     let App {name, arguments} = app;
     
     match env.get_opt(clone_rc_opt!(current_module), name) {
@@ -744,10 +842,10 @@ impl Program {
                   None => None,
                   Some(ref o) => clone_rc_opt!(o.source_module)
                 };
-              self.invoke_function(env, clone_rc_opt!(source_module), clone_rc_opt!(object), function, &args)
+              Ok(self.invoke_function(env, clone_rc_opt!(source_module), clone_rc_opt!(object), function, &args))
             } else {
               // TODO?
-              self.invoke_function(env, clone_rc_opt!(current_module), None, function, &args)
+              Ok(self.invoke_function(env, clone_rc_opt!(current_module), None, function, &args))
             }
           },
           Value::Object(ref object) => {
@@ -755,26 +853,51 @@ impl Program {
               match object.default_property {
                 Some(_) => {
                   let args: Vec<Value> = arguments.iter().map(|arg| self.evaluate_expr(env, clone_rc_opt!(current_module), arg)).collect();
-                  self.invoke_default_property(env, Rc::clone(object), &args)
+                  Ok(self.invoke_default_property(env, Rc::clone(object), &args))
                 },
                 None => {
                   assert!(arguments.len() == 0);
-                  value.clone()
+                  Ok(value.clone())
                 }
               }
             } else {
               assert!(arguments.len() == 0);
-              value.clone()
+              Ok(value.clone())
+            }
+          },
+          Value::Array(ref array) => {
+            if arguments.len() == 0 {
+              Ok(value.clone())
+            } else if arguments.len() == 1 {
+              let index = self.evaluate_expr_primitive(env, clone_rc_opt!(current_module), &arguments[0]);
+              let index = cast_to_int(index);
+              if index < 0 || index >= array.borrow().data.len() as i32 {
+                panic!("index out of range");
+              }
+              match rhs {
+                None => Ok(array.borrow().data[index as usize].clone()),
+                Some(rhs) => {
+                  // println!("rhs: {:?}", rhs);
+                  array.borrow_mut().data[index as usize] = rhs;
+                  // println!("array: {:?}", array);
+                  Err((value, Rc::new("".to_string())))
+                }
+              }
+            } else {
+              panic!("illegal number of arguments");
             }
           },
           _ => {
             // variable
             assert!(arguments.len() == 0);
-            value.clone()
+            Ok(value.clone())
           }
         }
       },
-      None => panic!("not found: {:?}", name)
+      None => {
+        env.assign_local_var(Rc::clone(&name), Value::Integer(0));
+        Ok(Value::Integer(0))
+      }
     }
   }
   
@@ -825,13 +948,13 @@ impl Program {
     }
   }
   
-  fn evaluate_chain(&self, env: &mut Env, current_module: Option<Rc<String>>, chain: &Chain, is_lhs: bool, has_proceeding_chain: bool)-> Result<Value, (Value, Id)> {
+  fn evaluate_chain(&self, env: &mut Env, current_module: Option<Rc<String>>, chain: &Chain, rhs: Option<Value>, is_lhs: bool, has_proceeding_chain: bool)-> Result<Value, (Value, Id)> {
     match chain {
       Chain::App(app) => {
-        Ok(self.evaluate_app(env, current_module, app, has_proceeding_chain))
+        self.evaluate_app(env, current_module, app, rhs, is_lhs, has_proceeding_chain)
       },
       Chain::Method(receiver, message) => {
-        let object = self.evaluate_chain(env, clone_rc_opt!(current_module), receiver, false, true)?;
+        let object = self.evaluate_chain(env, clone_rc_opt!(current_module), receiver, None, false, true)?;
         match &object {
           Value::Object(ref value) => {
             // propertyのとき
@@ -925,7 +1048,7 @@ impl Program {
         Value::String(Rc::clone(s))
       },
       Expr::Var(chain) => {
-        self.evaluate_chain(env, clone_rc_opt!(current_module), chain, false, false).ok().unwrap()
+        self.evaluate_chain(env, clone_rc_opt!(current_module), chain, None, false, false).ok().unwrap()
       },
       Expr::New(id) => {
         match env.get_opt(None, id) {

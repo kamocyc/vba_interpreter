@@ -1,3 +1,5 @@
+' Option Explicit
+
 Private Sub say_helloworld_Click()
    MsgBox "Hi"
 End Sub
@@ -7,6 +9,33 @@ Rem This is comment
 Function add(x As Integer, y As Integer) As Integer
   add = x + y
 End Function
+
+Sub ShowArray(arr As Variant)
+  Dim i As Integer
+  For i = LBound(arr) To UBound(arr)
+    MsgBox "arr(" & i & ")=" & arr(i)
+  Next
+End Sub
+
+Function fib2(n As Integer) As Integer
+  fib2 = fib(n)
+End Function
+
+Function fib(n As Integer) As Integer
+  If n < 2 Then
+    fib = n
+  Else
+    fib = fib2(n - 1) + fib2(n - 2)
+  End If
+End Function
+
+Sub LoopTest()
+  Dim i As Integer
+  Do While i < 10
+    MsgBox "i=" & i
+    i = i + 1
+  Loop
+End Sub
 
 Sub main()
   ' 
@@ -19,6 +48,23 @@ Sub main()
   ' Cells.Item(1, 3).Value = "Hello"
   ' Cells.Item(1, 4).Value = "World"
   ' Cells.Item(1, 5).Value = "!"
+  
+  LoopTest
+  
+  Debug.Print fib(10)
+  
+  Cells(1, 1) = 1099
+  
+  Dim arr As Variant
+  arr = Array(1, 2, 3, 4, 5)
+  Debug.Print arr
+  MsgBox arr
+  MsgBox arr(0)
+  arr(0) = 100
+  MsgBox arr
+  MsgBox arr(0)
+
+  ShowArray arr
   
   Dim p1 As point
   Set p1 = New point
@@ -58,7 +104,7 @@ Sub main()
   ' Cells(2, 2) = "hoeg"
   Debug.Print Cells(2, 2)
   Debug.Print Cells.Item(1, 1).Value
-  Debug.Print Cells.Range("B1", 1)
+  Debug.Print Cells.Range("B1")
   
   Dim name As String
   ' name = InputBox("Enter your name")
