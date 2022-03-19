@@ -1,3 +1,5 @@
+#![allow(arithmetic_overflow)]
+
 pub mod ast;
   
 mod vbalexer;
@@ -588,27 +590,25 @@ impl<'i> vbaVisitor<'i> for Visitor {
   }
 }
 
-pub fn parse(filename: &str)-> Module {
-  let contents = std::fs::read_to_string(filename)
-      .expect("Something went wrong reading the file");
+pub fn parse(contents: &str)-> Module {
   let input = InputStream::new(&*contents);
   let lexer = vbalexer::vbaLexer::new(input);
   let token_source = CommonTokenStream::new(lexer);
   let mut parser = vbaparser::vbaParser::new(token_source);
   
-  use std::io::Read;
-  use gag::BufferRedirect;
-  let mut buf = BufferRedirect::stderr().unwrap();
+  // use std::io::Read;
+  // use gag::BufferRedirect;
+  // let mut buf = BufferRedirect::stderr().unwrap();
   
   let result = parser.startRule().expect("parser error");
   
-  let mut output = String::new();
-  buf.read_to_string(&mut output).unwrap();
-  drop(buf);
+  // let mut output = String::new();
+  // buf.read_to_string(&mut output).unwrap();
+  // drop(buf);
   
-  if !output.is_empty() {
-    panic!("parse error (2): {}", output);
-  }
+  // if !output.is_empty() {
+  //   panic!("parse error (2): {}", output);
+  // }
   
   let mut visitor = Visitor{ stack_of_stack: vec![VecDeque::new()] };
   result.accept(&mut visitor);

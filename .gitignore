@@ -1,7 +1,4 @@
-/target
-
-
-/grammars_
+target/
 
 # antlr temp files
 .antlr

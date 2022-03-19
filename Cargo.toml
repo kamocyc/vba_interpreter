@@ -1,13 +1,9 @@
 [package]
 name = "vba_interpreter"
 version = "0.1.0"
-edition = "2018"
-exclude = ["/build.rs","/grammars","/templates"]
-build = "build.rs"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-antlr-rust = "=0.2"
-gag = "1.0.0"
-cli-table = "0.4"
+vba-interpreter-lib = { path = "vba-interpreter-lib" }

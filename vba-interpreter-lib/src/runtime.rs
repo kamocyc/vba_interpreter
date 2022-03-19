@@ -148,7 +148,7 @@ pub struct Worksheet {
   cells: Vec<Vec<Value>>,
 }
 
-use cli_table::{print_stdout, Cell, Table};
+// use cli_table::{print_stdout, Cell, Table};
 
 // ?
 fn to_alpha(column_index: usize)-> String {
@@ -215,14 +215,14 @@ impl Worksheet {
       }
     }
     
-    let table: Vec<Vec<_>> =
-      self.cells[0..last_row+1].iter().map(|row| {
-        row[0..last_col+1].iter().map(|cell| {
-          cast_to_string(cell.clone()).cell()
-        }).collect()
-      }).collect();
+    // let table: Vec<Vec<_>> =
+    //   self.cells[0..last_row+1].iter().map(|row| {
+    //     row[0..last_col+1].iter().map(|cell| {
+    //       cast_to_string(cell.clone()).cell()
+    //     }).collect()
+    //   }).collect();
     
-    print_stdout(table.table()).unwrap();
+    // print_stdout(table.table()).unwrap();
   }
 }
 
